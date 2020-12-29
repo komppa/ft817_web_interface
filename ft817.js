@@ -15,7 +15,7 @@ const { hexToBin, decToHex } = require('./conversions')
  * @property {number} node_id - mode number
  * @property {string} mode_name - mode name
  */
-    
+ 
 
 /** Class representing a connection between you and the radio */
 class FT817 {
@@ -141,6 +141,7 @@ class FT817 {
 
         let f = frequency
 
+        // No response becuase this is only setter
         await this.execute([
             decToHex(f.charAt(0) + f.charAt(1)), 
             decToHex(f.charAt(2) + f.charAt(3)), 
@@ -148,6 +149,7 @@ class FT817 {
             decToHex(f.charAt(6) + f.charAt(7)),
             0x01 
         ])
+
         return frequency
 
     }
@@ -173,17 +175,18 @@ class FT817 {
         // Get frequency also by substringing it
         let freq_full = resp.substring(0, 8)
 
+        // Strings to ints
         let mhzs = parseInt(freq_full.substring(0, 3))
         let khzs = parseInt(freq_full.substring(3, 6))
         let hzs = parseInt(freq_full.substring(6, 8))
 
         return {
             frequency: freq_full,
-            mhzs: mhzs,
-            khzs: khzs,
-            hzs: hzs,
-            mode_id: mode_id,
-            mode_name: mode_name,
+            mhzs,
+            khzs,
+            hzs,
+            mode_id,
+            mode_name,
         }
 
     }
@@ -195,16 +198,63 @@ class FT817 {
     async getReceiverStatus() {
 
         let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xE7], 1)
-        return hexToBin(resp)
+        let b = hexToBin(resp)
+
+        // Bit 7 is 0 if there is a signal and 1 if the receiver is squelched
+        let squelched = b & 0b10000000 ? true : false
+
+        // Bits 0-3 contain S-meter values    
+        let s = b & 0b00001111
+        let smeter_reading
+        if (s <= 9) {
+            smeter_reading = 'S' + s.toString()
+        } else {
+            // For example 'S9+10dB'
+            smeter_reading = 'S9+' + ((s-9) * 10).toString() + 'dB'
+        }
+
+        return {
+            smeter_reading,
+            squelched
+        }
     }
 
-    // TODO Get transmitter status from the radio. These can be read only, when the radio is transmitting.
-    /*
-    getTransmitterStatus() {
-        return 0
-    }
-    */
+    /**
+     * Get transmitter status from the radio.
+     * NOTE: these values can not be trusted if radio is not transmitting.
+     *       Trust other values when this method returns that pttActive is true.
+     * @return {Promise} 
+     */
+    async getTransmitterStatus() {
+        
+        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xF7], 1)
+        let b = hexToBin(resp)
 
+        // Bit 7 indicates whether PTT is active or low. Bit is high if PTT is NOT active.
+        let pttActive = b & 0b10000000 ? false : true
+
+        /**
+         * Bit 6 indicates if SWR is too high. 
+         * Bit high for too high SWR. Zero for acceptably level.
+         * NOTE: this value can not be trusted when radio not TXing. 
+         *       On RX shows that HSWR is true.
+         */
+        let highSWR = b & 0b01000000 ? true : false
+
+        /**
+         * Bit 5 indicates if split mode is on. 
+         * High if SPL mode is on.
+         * NOTE: this value can not be trusted when radio not TXing. 
+         *       On RX shows that split mode is true even if its not.
+         */
+        let splitModeOn = b & 0b00100000 ? true : false
+
+        return {
+            pttActive,
+            highSWR,
+            splitModeOn,
+        }
+    }
 }
 
 module.exports = FT817
