@@ -30,6 +30,7 @@ class FT817 {
         this.serial_port = serial_port
         this.serial_speed = serial_speed
         this.executableCommand = null
+        this.wpo // write protection object
 
         // Check if serial port to be used was defined
         if (!this.serial_port && !ranByJest()) {
@@ -58,6 +59,51 @@ class FT817 {
     setResponseLength(byte_length) {
         this.parser = this.port.unpipe()
         this.parser = this.port.pipe(new ByteLength({length: byte_length}))
+    }
+
+    /**
+     * EEPROM write protection. Prevents fast and infinite
+     * write operations to the radio, since write operations wear out the memory. 
+     * Allows 6 fastly made write operations to be executed consecutively.
+     * @return {boolean} - Status of whether or not the write operation is allowed.                 
+     */
+    eepromWriteProtection() {
+        // Check if write protection object has been defined
+        if (typeof this.wpo === "undefined") {
+
+            // Initialize wpo, set writes count to one, mark currest timestamp
+            this.wpo = {
+                writes: 1,
+                lastWriteTs: Math.floor(new Date())
+            }
+            return true
+        }
+
+        // When wpo exists, check if last write was made <2 seconds ago.
+        // If yes, increase counter by one to indicate
+        // that a fast execution has been made. If counter 
+        // is at its maximum value (6), return rejective status.
+        
+        if (this.wpo.lastWriteTs < (Math.floor(new Date())) - 2000 ) {
+            // Last write operation executed >2 seconds ago
+            // Update timestamp for last write operation, reset counter and allow write operation
+            this.wpo.lastWriteTs = Math.floor(new Date())
+            this.wpo.writes = 0
+            return true
+        } else {
+            // Last write operation executed <2 seconds ago
+            // Check if this is the 7th write operation within 2 seconds from the previous one.
+            if (this.wpo.writes === 6) {
+                // Update timestamp and disallow write operation
+                this.wpo.lastWriteTs = Math.floor(new Date())
+                return false
+            } else {
+                // 2nd-6th oepration, increase writes, update timestamp and allow operation
+                this.wpo.writes = this.wpo.writes + 1
+                this.wpo.lastWriteTs = Math.floor(new Date())
+                return true
+            }
+        }
     }
     
     /**
