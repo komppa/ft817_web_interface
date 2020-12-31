@@ -16,19 +16,19 @@ describe('Test setFrequency function', () => {
     })
 
     test('without frequency parameter', () => {
-        expect(ft817.setFrequency()).toBe('14575000')
+        expect(ft817.setFrequency()).resolves.toBe('14575000')
     })
-
+    
     test('with correct frequency string with leading zeros', () => {
-        expect(ft817.setFrequency('02829750')).toBe('02829750')
+        expect(ft817.setFrequency('02829750')).resolves.toBe('02829750')
     })
 
     test('with frequency that does not have leading zeros and is a string', () => {
-        expect(ft817.setFrequency('2829750')).toBe('02829750')
+        expect(ft817.setFrequency('2829750')).resolves.toBe('02829750')
     })
 
     test('with correct frequency that is integer but does not have leading zeros', () => {
-        expect(ft817.setFrequency(2829750)).toBe('02829750')
+        expect(ft817.setFrequency(2829750)).resolves.toBe('02829750')
     })
 
     /**
@@ -36,19 +36,19 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 100kHz is not valid', () => {
-        expect(ft817.setFrequency(500)).toBe(false)
+        expect(ft817.setFrequency(500)).resolves.toBe(false)
     })
 
     test('that 100kHz is valid ', () => {
-        expect(ft817.setFrequency(10000)).toBe('00010000')
+        expect(ft817.setFrequency(10000)).resolves.toBe('00010000')
     })
 
     test('that 28MHz is valid', () => {
-        expect(ft817.setFrequency('02800000')).toBe('02800000')
+        expect(ft817.setFrequency('02800000')).resolves.toBe('02800000')
     })
 
     test('that 31MHz is invalid', () => {
-        expect(ft817.setFrequency('03100000')).toBe(false)
+        expect(ft817.setFrequency('03100000')).resolves.toBe(false)
     })
 
     /**
@@ -56,19 +56,19 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 50Mhz is invalid', () => {
-        expect(ft817.setFrequency('04900000')).toBe(false)
+        expect(ft817.setFrequency('04900000')).resolves.toBe(false)
     })
 
     test('that 50Mhz is valid', () => {
-        expect(ft817.setFrequency('05000000')).toBe('05000000')
+        expect(ft817.setFrequency('05000000')).resolves.toBe('05000000')
     })
 
     test('that 53Mhz is valid', () => {
-        expect(ft817.setFrequency('05300000')).toBe('05300000')
+        expect(ft817.setFrequency('05300000')).resolves.toBe('05300000')
     })
 
     test('that over 54Mhz is invalid', () => {
-        expect(ft817.setFrequency('05500000')).toBe(false)
+        expect(ft817.setFrequency('05500000')).resolves.toBe(false)
     })
 
     
@@ -77,19 +77,19 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 76Mhz is invalid', () => {
-        expect(ft817.setFrequency('07500000')).toBe(false)
+        expect(ft817.setFrequency('07500000')).resolves.toBe(false)
     })
 
     test('that 80Mhz is valid', () => {
-        expect(ft817.setFrequency('08000000')).toBe('08000000')
+        expect(ft817.setFrequency('08000000')).resolves.toBe('08000000')
     })
 
     test('that 101Mhz is valid', () => {
-        expect(ft817.setFrequency('10100000')).toBe('10100000')
+        expect(ft817.setFrequency('10100000')).resolves.toBe('10100000')
     })
 
     test('that over 108Mhz is invalid', () => {
-        expect(ft817.setFrequency('11000000')).toBe(false)
+        expect(ft817.setFrequency('11000000')).resolves.toBe(false)
     })
 
     
@@ -98,19 +98,19 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 87.5Mhz is valid (becuase prev band catches it)', () => {
-        expect(ft817.setFrequency('08740000')).toBe('08740000')
+        expect(ft817.setFrequency('08740000')).resolves.toBe('08740000')
     })
 
     test('that 80Mhz is valid', () => {
-        expect(ft817.setFrequency('08000000')).toBe('08000000')
+        expect(ft817.setFrequency('08000000')).resolves.toBe('08000000')
     })
 
     test('that 101Mhz is valid', () => {
-        expect(ft817.setFrequency('10100000')).toBe('10100000')
+        expect(ft817.setFrequency('10100000')).resolves.toBe('10100000')
     })
 
     test('that over 108Mhz is invalid', () => {
-        expect(ft817.setFrequency('11000000')).toBe(false)
+        expect(ft817.setFrequency('11000000')).resolves.toBe(false)
     })
 
     
@@ -119,19 +119,19 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 144Mhz is invalid', () => {
-        expect(ft817.setFrequency('14300000')).toBe(false)
+        expect(ft817.setFrequency('14300000')).resolves.toBe(false)
     })
 
     test('that 145.5MHz is valid', () => {
-        expect(ft817.setFrequency('14550000')).toBe('14550000')
+        expect(ft817.setFrequency('14550000')).resolves.toBe('14550000')
     })
 
     test('that 146Mhz is valid', () => {
-        expect(ft817.setFrequency('14600000')).toBe('14600000')
+        expect(ft817.setFrequency('14600000')).resolves.toBe('14600000')
     })
 
     test('that over 148Mhz is invalid', () => {
-        expect(ft817.setFrequency('14900000')).toBe(false)
+        expect(ft817.setFrequency('14900000')).resolves.toBe(false)
     })
 
     
@@ -140,20 +140,21 @@ describe('Test setFrequency function', () => {
      */
 
     test('that under 429Mhz is invalid', () => {
-        expect(ft817.setFrequency('42900000')).toBe(false)
+        expect(ft817.setFrequency('42900000')).resolves.toBe(false)
     })
 
     test('that 430MHz is valid', () => {
-        expect(ft817.setFrequency('43000000')).toBe('43000000')
+        expect(ft817.setFrequency('43000000')).resolves.toBe('43000000')
     })
 
     test('that 445Mhz is valid', () => {
-        expect(ft817.setFrequency('44500000')).toBe('44500000')
+        expect(ft817.setFrequency('44500000')).resolves.toBe('44500000')
     })
 
     test('that over 450Mhz is invalid', () => {
-        expect(ft817.setFrequency('45050000')).toBe(false)
+        expect(ft817.setFrequency('45050000')).resolves.toBe(false)
     })
+
 
 })
 

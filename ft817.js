@@ -3,7 +3,7 @@ const ByteLength = require('@serialport/parser-byte-length')
 const { ranByJest } = require('./ranByJest')
 const modes = require('./modes')
 const frequencies = require('./frequencies')
-const { hexToBin, decToHex } = require('./conversions')
+const { hexToBin, hexToDec } = require('./conversions')
 
 
 /**
@@ -22,7 +22,7 @@ class FT817 {
 
     /**
      * Create new connection between radio and the computer.
-     * @param {string} serial_port - serial port that wil be used for communication
+     * @param {string} serial_port - serial port that wil be used for communication. Pass 0 if do not want to establish a real connection.
      * @param {number} [serial_speed=9600] - serial port's communication speed
      */
     constructor(serial_port, serial_speed = 9600) {
@@ -34,14 +34,18 @@ class FT817 {
 
         // Check if serial port to be used was defined
         if (!this.serial_port && !ranByJest()) {
-            throw new SyntaxError("serial port was not defined")
+            throw new Error("Serial port was not defined")
         }
 
         // If not ran by Jest testing framework, establish connection to the serial port
-        if(!ranByJest()) {
+        if(!ranByJest() && this.serial_port != 0) {
 
             this.port = new SerialPort(this.serial_port, {
                 baudRate: this.serial_speed
+            })
+
+            this.port.on('error', function(err) {
+                throw new Error("Serial device does not exist")
             })
             
             // On default, we will assume that response will be one byte long.
@@ -57,8 +61,9 @@ class FT817 {
      * @param {number} byte_length - assumed response length
      */
     setResponseLength(byte_length) {
+        this.response_length = byte_length
         this.parser = this.port.unpipe()
-        this.parser = this.port.pipe(new ByteLength({length: byte_length}))
+        this.parser = this.port.pipe(new ByteLength({length: this.response_length}))
     }
 
     /**
@@ -107,42 +112,55 @@ class FT817 {
     }
     
     /**
-     * Executes commands and returns response from the radio
+     * Executes commands and returns response from the radio. If no argument passed, 
+     * it assumes that operation is write operation and thus those are limited in specific time window.
+     * @param {boolean} [isWriteOperation=true] - Pass flag false if executable command is not write operation to radio's EEPROM.
      * @return {Promise} Promise object represents the response from the radio
      */
-    async executeCommand () {
+    async executeCommand (isWriteOperation = true) {
 
-        // TODO time based EEPROM protection mechanism
+        if (isWriteOperation) {
+            // Check if write operation is legal
+            if (!true) {
+                throw new Error("Too many EEPROM write operaions in short time window")
+            }
+        }
 
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
 
-            let commandTimeouter = setTimeout(() => resolve(false), 1000)
+            // Timeout in a half of a second
+            let commandTimeouter = setTimeout(() => {
+                reject(new Error("Radio did not respond within set timeout"))
+            }, 500)
             
             this.port.write(this.getCommand())
-
-            // Add event listener (once) that waits incoming data
-            // that its length will be is the same as ByteLength's length
-            this.parser.once('data', received_data => {
-                clearInterval(commandTimeouter)
-                resolve(received_data.toString('hex'))
-            })
-        
+            
+            /*
+                Add event listener, if assumed response length is not zero, (once) that waits incoming data
+                that its length will be is the same as ByteLength's length.
+            */
+            this.response_length !== 0 {
+                this.parser.once('data', received_data => {
+                    clearInterval(commandTimeouter)
+                    resolve(received_data.toString('hex'))
+                })
+            }
         })
     }
 
     /**
-     * Set executable command to the object's variable executableCommand and
+     * Set executable command to the object's variable executable_command and
      * converts values to hex
      */
     setCommand(command) {
-        this.executableCommand = Buffer.from(command)
+        this.executable_command = Buffer.from(command)
     }
 
     /**
      * Get previously set executable command
      */
     getCommand() {
-        return this.executableCommand
+        return this.executable_command
     }
 
     /**
@@ -150,15 +168,17 @@ class FT817 {
      * given response length as assumed response length and 
      * after those, executes command, waits for the response and
      * returns it.
-     * @param {number[]} executable_command - executable command 
+     * @param {number[]} command - executable command 
      * @param {number} [response_length=1] - expected response length
      * @return {Promise} Promise object represents the response from the radio
      */
-    async execute(executable_command, response_length = 1) {
-        console.log("@@@@@@@exevute ", executable_command);
-        this.setCommand(executable_command)
+    async execute(command, response_length = 1, isWriteOperation = true) {
+        this.setCommand(command)
         this.setResponseLength(response_length)
-        return await this.executeCommand()
+        // Do not execute command if Jest is runnning this session
+        if (!ranByJest()) {
+            return await this.executeCommand(isWriteOperation)
+        }
     }
 
     /**
@@ -187,16 +207,16 @@ class FT817 {
 
         let f = frequency
 
-        // No response becuase this is only setter
+        // Do not send commands if this is ran by Jest
         await this.execute([
-            decToHex(f.charAt(0) + f.charAt(1)), 
-            decToHex(f.charAt(2) + f.charAt(3)), 
-            decToHex(f.charAt(4) + f.charAt(5)), 
-            decToHex(f.charAt(6) + f.charAt(7)),
+            hexToDec(f.charAt(0) + f.charAt(1)), 
+            hexToDec(f.charAt(2) + f.charAt(3)), 
+            hexToDec(f.charAt(4) + f.charAt(5)), 
+            hexToDec(f.charAt(6) + f.charAt(7)),
             0x01 
         ])
 
-        return frequency
+        return f
 
     }
 
@@ -207,9 +227,9 @@ class FT817 {
      */
     async getFreqAndMode() {
 
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x03], 5)
+        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x03], 5, false)
 
-        if(!resp) {
+        if (!resp) {
             console.log("Radio not turned on")
             return false
         }
@@ -243,7 +263,7 @@ class FT817 {
      */
     async getReceiverStatus() {
 
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xE7], 1)
+        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xE7], 1, false)
         let b = hexToBin(resp)
 
         // Bit 7 is 0 if there is a signal and 1 if the receiver is squelched
@@ -273,7 +293,7 @@ class FT817 {
      */
     async getTransmitterStatus() {
         
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xF7], 1)
+        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xF7], 1, false)
         let b = hexToBin(resp)
 
         // Bit 7 indicates whether PTT is active or low. Bit is high if PTT is NOT active.

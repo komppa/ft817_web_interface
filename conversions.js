@@ -13,5 +13,9 @@ exports.hexToBin = (hex, length = 1) => {
 }
 
 exports.hexToDec = (hex) => {
-    return parse
+    return parseInt(hex, 16);
+}
+
+exports.decToHex = (dec) => {
+    return dec.toString('hex')
 }
