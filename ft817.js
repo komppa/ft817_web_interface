@@ -121,7 +121,7 @@ class FT817 {
 
         if (isWriteOperation) {
             // Check if write operation is legal
-            if (!true) {
+            if (!this.eepromWriteProtection()) {
                 throw new Error("Too many EEPROM write operaions in short time window")
             }
         }
@@ -139,7 +139,7 @@ class FT817 {
                 Add event listener, if assumed response length is not zero, (once) that waits incoming data
                 that its length will be is the same as ByteLength's length.
             */
-            this.response_length !== 0 {
+            if (this.response_length !== 0) {
                 this.parser.once('data', received_data => {
                     clearInterval(commandTimeouter)
                     resolve(received_data.toString('hex'))
@@ -207,16 +207,42 @@ class FT817 {
 
         let f = frequency
 
-        // Do not send commands if this is ran by Jest
         await this.execute([
-            hexToDec(f.charAt(0) + f.charAt(1)), 
-            hexToDec(f.charAt(2) + f.charAt(3)), 
-            hexToDec(f.charAt(4) + f.charAt(5)), 
-            hexToDec(f.charAt(6) + f.charAt(7)),
+            '0x' + f.charAt(0) + f.charAt(1),
+            '0x' + f.charAt(2) + f.charAt(3),
+            '0x' + f.charAt(4) + f.charAt(5),
+            '0x' + f.charAt(6) + f.charAt(7),
             0x01 
         ])
 
         return f
+    }
+
+    /**
+     * Set operation mode to the radio.
+     * Accepts both a string (like 'USB') or a number (1 for USB) as an argument. 
+     * Method validates requested mode and returns true if mode was succesfully set. 
+     * @param {string | number} mode - Mode to be selected as current operating mode. 
+     * @param {Promise} promise - Promise object representing the success of selection operation.
+     */
+    async setOperatingMode(mode) {
+
+        let mode_id = modes.isValidMode(mode)
+
+        if (!mode_id) {
+            console.log("Invalid mode")
+            return false
+        }
+
+        await this.execute([
+            '0x' + mode_id.charAt(0) + mode_id.charAt(1),   // mode byte
+            0x00,
+            0x00,
+            0x00,
+            0x07 // set operating mode 
+        ])
+
+        return true
 
     }
 
@@ -321,6 +347,59 @@ class FT817 {
             splitModeOn,
         }
     }
+
+
+    /**
+     * Lock or unlock the radio's dial/panel.
+     * @param {boolean} [lock=false] - Lock (true) or unlock (false) radio. By default unlocking the radio.
+     * @return {Promise} Promise object represents the success of locking/unlocking
+     */
+    async setLock(lock = false) {
+
+        let resp
+
+        if (lock) {
+            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x00], 1)    // Lock the radio
+        } else {
+            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x80], 1)    // Unlock the radio
+        }
+
+        // Returns 00 if operation done and F0 if already on that state
+        if (resp === '00') {
+            return true
+        } else if (resp == 'f0'){
+            throw new Error(lock ? "Already locked" : "Already unlocked")
+        } else {
+            throw new Error("Unknown response from the radio")
+        }
+    }
+
+    /**
+     * Push PTT or release PTT
+     * @param {boolean} [pttActive=false] - Active PTT or release PTT
+     * @return {Promise} Promise object represents the success of activating/releasing PTT
+     */
+    async setPTT(pttActive = false) {
+        
+        let resp
+
+        if (pttActive) {
+            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x08], 1)    // Set PTT on
+        } else {
+            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x88], 1)    // Set PTT off
+        }
+
+        // Returns 00 if operation done and F0 if already on that state
+        if (resp === '00') {
+            return true
+        } else if (resp == 'f0'){
+            throw new Error(pttActive ? "PTT already active" : "PTT already off")
+        } else {
+            throw new Error("Unknown response from the radio")
+        }
+    }
+
+    
 }
 
 module.exports = FT817
