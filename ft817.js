@@ -6,17 +6,6 @@ const frequencies = require('./frequencies')
 const { hexToBin, hexToDec } = require('./conversions')
 
 
-/**
- * @typedef FreqAndMode
- * @property {string} freq_full - Full frequency
- * @property {number} mhzs - MHz
- * @property {number} hhzs - kHz
- * @property {number} hzs - Hz
- * @property {number} node_id - mode number
- * @property {string} mode_name - mode name
- */
- 
-
 /** Class representing a connection between you and the radio */
 class FT817 {
 
@@ -191,31 +180,38 @@ class FT817 {
      */
     async setFrequency(frequency = '14575000') {
 
-        // Make frequency into a number if not already because the range is checked next
-        if(isNaN(frequency)) {
-            frequency = parseInt(frequency)
-        }
+        return new Promise(async (resolve, reject) => {
 
-        // Check if frequency is valid atleast for RX
-        if (!frequencies.isValidRxFrequency(frequency)) return false
-        
-        // Convert back to string
-        frequency = frequency.toString()
+            // Make frequency into a number if not already because the range is checked next
+            if(isNaN(frequency)) {
+                frequency = parseInt(frequency)
+            }
 
-        // Add leading zeros for so long that it is eight chars long
-        frequency = frequency.padStart(8, '0')
+            // Check if frequency is valid atleast for RX
+            if (!frequencies.isValidRxFrequency(frequency)) {
+                reject(new Error("Invalid frequency for RX"))
+            }
+            
+            // Convert back to string
+            frequency = frequency.toString()
 
-        let f = frequency
+            // Add leading zeros for so long that it is eight chars long
+            frequency = frequency.padStart(8, '0')
 
-        await this.execute([
-            '0x' + f.charAt(0) + f.charAt(1),
-            '0x' + f.charAt(2) + f.charAt(3),
-            '0x' + f.charAt(4) + f.charAt(5),
-            '0x' + f.charAt(6) + f.charAt(7),
-            0x01 
-        ])
+            let f = frequency
 
-        return f
+            await this.execute([
+                '0x' + f.charAt(0) + f.charAt(1),
+                '0x' + f.charAt(2) + f.charAt(3),
+                '0x' + f.charAt(4) + f.charAt(5),
+                '0x' + f.charAt(6) + f.charAt(7),
+                0x01 
+            ])
+
+            resolve(f)
+
+        })
+
     }
 
     /**
@@ -246,6 +242,16 @@ class FT817 {
 
     }
 
+
+    /**
+    * @typedef FreqAndMode
+    * @property {string} freq_full - Full frequency
+    * @property {number} mhzs - MHz
+    * @property {number} hhzs - kHz
+    * @property {number} hzs - Hz
+    * @property {number} node_id - mode number
+    * @property {string} mode_name - mode name
+    */
 
     /**
      * Get frequency and mode from the radio
@@ -376,14 +382,14 @@ class FT817 {
 
     /**
      * Push PTT or release PTT
-     * @param {boolean} [pttActive=false] - Active PTT or release PTT
+     * @param {boolean} [activatePTT=false] - Active PTT or release PTT
      * @return {Promise} Promise object represents the success of activating/releasing PTT
      */
-    async setPTT(pttActive = false) {
+    async setPTT(activatePTT = false) {
         
         let resp
 
-        if (pttActive) {
+        if (activatePTT) {
             resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x08], 1)    // Set PTT on
         } else {
             resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x88], 1)    // Set PTT off
@@ -393,12 +399,54 @@ class FT817 {
         if (resp === '00') {
             return true
         } else if (resp == 'f0'){
-            throw new Error(pttActive ? "PTT already active" : "PTT already off")
+            throw new Error(activatePTT ? "PTT already active" : "PTT already off")
         } else {
             throw new Error("Unknown response from the radio")
         }
     }
 
+    /**
+     * Activate or deactivate CTCSS. This will enable both encoding and decoding!
+     * @param {boolean} [activateCTCSS=false] - Activate or deactivate CTCSS.
+     * @return {Promise} Promise object represents the success of activating/deactivating CTCSS
+     */
+    async setCTCSS(activateCTCSS = false) {
+        if (activateCTCSS) {
+            await this.execute([0x2A, 0x00, 0x00, 0x00, 0x0A], 1)
+        } else {
+            await this.execute([0x8A, 0x00, 0x00, 0x00, 0x0A], 1)
+        }
+        return true
+    }
+
+    /**
+     * Set CTCSS frequency to the radio.
+     * Accepts frequencies as both, numbers and string.
+     * @param {number | string} frequency - Frequency that will be set as CTCSS frequency
+     * @return {Promise} Promise object represents the success sending CTCSS frequency to the radio
+     */
+    async setCTCSSFrequency(frequency) {
+
+        return new Promise(async (resolve, reject) => {
+
+            let f = frequencies.isValidCTCSSFrequency(frequency)
+
+            if (!f) {
+                reject(new Error("CTCSS frequency does not exist"))
+            }
+
+            await this.execute([
+                '0x' + f.charAt(0) + f.charAt(1),
+                '0x' + f.charAt(2) + f.charAt(3),
+                0x00,
+                0x00,
+                0x0B 
+            ])
+
+            resolve(true)
+        })
+
+    }
     
 }
 

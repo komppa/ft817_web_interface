@@ -81,8 +81,6 @@ exports.isValidMode = (mode) => {
 
     } else if (typeof mode === 'number') {
         // If validated mode is given as a number
-
-        // TODO IS NUMBER HEX OR A STRING?
         let m = modes.find(ms => ms.id === mode)
         return m ? '0' + m.id.toString(16).toUpperCase() : false
     } else {
