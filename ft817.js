@@ -16,10 +16,11 @@ class FT817 {
      */
     constructor(serial_port, serial_speed = 9600) {
 
-        this.serial_port = serial_port
-        this.serial_speed = serial_speed
-        this.executableCommand = null
-        this.wpo // write protection object
+        this.serial_port = serial_port      // Speed for serial connection
+        this.serial_speed = serial_speed    // Serial port that will be used for communication
+        this.executable_command             // Command that will be executed
+        this.response                       // Response from the radio
+        this.wpo                            // Write protection object
 
         // Check if serial port to be used was defined
         if (!this.serial_port && !ranByJest()) {
@@ -166,7 +167,7 @@ class FT817 {
         this.setResponseLength(response_length)
         // Do not execute command if Jest is runnning this session
         if (!ranByJest()) {
-            return await this.executeCommand(isWriteOperation)
+            this.response = await this.executeCommand(isWriteOperation)
         }
     }
 
@@ -259,15 +260,15 @@ class FT817 {
      */
     async getFreqAndMode() {
 
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x03], 5, false)
+        await this.execute([0x00, 0x00, 0x00, 0x00, 0x03], 5, false)
 
-        if (!resp) {
+        if (!this.response) {
             console.log("Radio not turned on")
             return false
         }
     
         // Get mode by substringing last two digits
-        let mode_id = resp.substring(8)
+        let mode_id = this.response.substring(8)
         let mode_name = modes.getModeNameById(mode_id)
 
         // Get frequency also by substringing it
@@ -295,8 +296,8 @@ class FT817 {
      */
     async getReceiverStatus() {
 
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xE7], 1, false)
-        let b = hexToBin(resp)
+        await this.execute([0x00, 0x00, 0x00, 0x00, 0xE7], 1, false)
+        let b = hexToBin(this.response)
 
         // Bit 7 is 0 if there is a signal and 1 if the receiver is squelched
         let squelched = b & 0b10000000 ? true : false
@@ -325,8 +326,8 @@ class FT817 {
      */
     async getTransmitterStatus() {
         
-        let resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0xF7], 1, false)
-        let b = hexToBin(resp)
+        await this.execute([0x00, 0x00, 0x00, 0x00, 0xF7], 1, false)
+        let b = hexToBin(this.response)
 
         // Bit 7 indicates whether PTT is active or low. Bit is high if PTT is NOT active.
         let pttActive = b & 0b10000000 ? false : true
@@ -362,18 +363,16 @@ class FT817 {
      */
     async setLock(lock = false) {
 
-        let resp
-
         if (lock) {
-            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x00], 1)    // Lock the radio
+            await this.execute([0x00, 0x00, 0x00, 0x00, 0x00], 1)    // Lock the radio
         } else {
-            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x80], 1)    // Unlock the radio
+            await this.execute([0x00, 0x00, 0x00, 0x00, 0x80], 1)    // Unlock the radio
         }
 
         // Returns 00 if operation done and F0 if already on that state
-        if (resp === '00') {
+        if (this.response === '00') {
             return true
-        } else if (resp == 'f0'){
+        } else if (this.response == 'f0'){
             throw new Error(lock ? "Already locked" : "Already unlocked")
         } else {
             throw new Error("Unknown response from the radio")
@@ -387,18 +386,16 @@ class FT817 {
      */
     async setPTT(activatePTT = false) {
         
-        let resp
-
         if (activatePTT) {
-            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x08], 1)    // Set PTT on
+            await this.execute([0x00, 0x00, 0x00, 0x00, 0x08], 1)    // Set PTT on
         } else {
-            resp = await this.execute([0x00, 0x00, 0x00, 0x00, 0x88], 1)    // Set PTT off
+            await this.execute([0x00, 0x00, 0x00, 0x00, 0x88], 1)    // Set PTT off
         }
 
         // Returns 00 if operation done and F0 if already on that state
-        if (resp === '00') {
+        if (this.response === '00') {
             return true
-        } else if (resp == 'f0'){
+        } else if (this.response == 'f0'){
             throw new Error(activatePTT ? "PTT already active" : "PTT already off")
         } else {
             throw new Error("Unknown response from the radio")
